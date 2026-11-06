@@ -181,12 +181,34 @@ function buildFaces() {
     if (e.cut) {
       const y0 = e.sl, y1 = Math.min(W.H, e.sl + e.ht), d = -W.t / 2;
       const quad = [W.w(s0, y0, d), W.w(s1, y0, d), W.w(s1, y1, d), W.w(s0, y1, d)];
+      if (e.k === "PORTA" || e.k === "JANELA") {
+        // guarnição (batentes e verga), levemente saliente nas duas faces da parede
+        const fr = e.k === "PORTA" ? [236, 233, 226] : [244, 243, 240], fw = 48, fo = Object.assign({ wall: wk }, o);
+        const fb = (a0, a1, b0, b1) => box(W, a0, a1, b0, b1, -W.t - 10, 10, fr, tag, fo).forEach(q => faces.push(q));
+        fb(s0, s0 + fw, y0, y1); fb(s1 - fw, s1, y0, y1); fb(s0 + fw, s1 - fw, y1 - fw, y1);
+        if (e.k === "JANELA") {
+          fb(s0 + fw, s1 - fw, y0, y0 + fw * 0.8);
+          box(W, s0 - 40, s1 + 40, y0 - 22, y0 + 8, -W.t, 55, [250, 249, 246], tag, fo).forEach(q => faces.push(q));
+          const mid = (s0 + s1) / 2;
+          box(W, mid - 18, mid + 18, y0 + fw * 0.8, y1 - fw, d - 22, d + 22, fr, tag, fo).forEach(q => faces.push(q));
+          if (y1 - y0 > 1300) box(W, s0 + fw, s1 - fw, (y0 + y1) / 2 - 18, (y0 + y1) / 2 + 18, d - 22, d + 22, fr, tag, fo).forEach(q => faces.push(q));
+        } else if (!e.sd) {
+          const hs = e.hg ? s1 - 190 : s0 + 90;
+          box(W, hs, hs + 100, 1000, 1040, d - 48, d + 48, [188, 186, 180], tag, fo).forEach(q => faces.push(q));
+        }
+      }
       if (e.k === "PORTA") faces.push(mk(quad, W.N, COL.door, tag, Object.assign({ cull: false, wall: wk, doorp: true, a: e.sd ? 0.9 : 0.95 }, o)));
       else if (e.k === "JANELA") faces.push(mk(quad, W.N, COL.glass, tag, Object.assign({ cull: false, wall: wk, doorp: true, a: 0.42 }, o)));
       else faces.push(mk(quad, W.N, [255, 178, 36], tag, Object.assign({ cull: false, wall: wk, doorp: true, a: 0.05, dash: true }, o)));
     } else if (e.te) {
       const c = e.k === "AGUA" && e.hot ? TECH.AGUA_Q : TECH[e.k];
-      box(W, e.p - 40, e.p + 40, e.sl - 40, e.sl + 40, 0, 20, c, tag, { elw: wk, edge: true }).forEach(f => faces.push(f));
+      if (e.k === "TOMADA" || e.k === "INTERRUPTOR") {
+        const plate = [246, 245, 241], ro = { elw: wk, edge: true };
+        box(W, e.p - 45, e.p + 45, e.sl - 45, e.sl + 45, 0, 13, plate, tag, ro).forEach(f => faces.push(f));
+        if (e.k === "TOMADA") {
+          [-20, 20].forEach(dx => box(W, e.p + dx - 7, e.p + dx + 7, e.sl - 14, e.sl + 14, 12, 16, [66, 60, 58], tag, ro).forEach(f => faces.push(f)));
+        } else box(W, e.p - 14, e.p + 14, e.sl - 26, e.sl + 26, 12, 22, lite(plate, -0.04), tag, ro).forEach(f => faces.push(f));
+      } else box(W, e.p - 40, e.p + 40, e.sl - 40, e.sl + 40, 0, 20, c, tag, { elw: wk, edge: true }).forEach(f => faces.push(f));
     } else if (e.k === "PILAR" || e.k === "DENTE") {
       box(W, s0, s1, 0, W.H, 0, e.dp, e.k === "PILAR" ? COL.pillar : COL.tooth, tag, { elw: wk, edge: true }).forEach(f => faces.push(f));
     } else if (e.k === "VIGA") {
@@ -196,16 +218,141 @@ function buildFaces() {
   furnFaces();
 }
 
+/* móveis: cada tipo é montado com várias peças (caixas e cilindros) em coordenadas locais; frente = lado +y */
+const shade = (c, k) => c.map(v => Math.max(0, Math.min(255, Math.round(v * k))));
+const lite = (c, k) => c.map(v => Math.round(v + (255 - v) * k));
+
+function furnParts(f) {
+  const w = f.w, d = f.d, h = f.h, hw = w / 2, hd = d / 2, C = FCOL[f.k] || FCOL.OUTRO, P = [], cy = [];
+  const bx = (x0, x1, y0, y1, z0, z1, col, o) => P.push(Object.assign({ x0, x1, y0, y1, z0, z1, col }, o || {}));
+  // bx(lx0, lx1, ly0, ly1, alturaInicial, alturaFinal, cor)
+  const wood = [150, 112, 78], dark = [58, 50, 46], metal = [176, 178, 182];
+  const legs = (inset, sz, hh, col) => [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([i, j]) =>
+    bx(i * (hw - inset) - sz / 2, i * (hw - inset) + sz / 2, j * (hd - inset) - sz / 2, j * (hd - inset) + sz / 2, 0, hh, col || dark));
+  switch (f.k) {
+    case "SOFA": case "POLTRONA": {
+      const arm = w * (f.k === "SOFA" ? 0.09 : 0.14), back = d * 0.24, base = h * 0.42, seat = base + 110;
+      legs(50, 55, 90, dark);
+      bx(-hw, hw, -hd, hd, 90, base, shade(C, 0.82));
+      bx(-hw, hw, -hd, -hd + back, base, h, shade(C, 0.92));
+      bx(-hw, -hw + arm, -hd + back, hd, base, h * 0.7, shade(C, 0.95));
+      bx(hw - arm, hw, -hd + back, hd, base, h * 0.7, shade(C, 0.95));
+      const n = f.k === "SOFA" ? (w > 1800 ? 3 : 2) : 1, iw = (w - 2 * arm) / n;
+      for (let i = 0; i < n; i++) {
+        const x0 = -hw + arm + i * iw + 8, x1 = -hw + arm + (i + 1) * iw - 8;
+        bx(x0, x1, -hd + back, hd - 15, base, seat, lite(C, 0.14));
+        bx(x0 + 10, x1 - 10, -hd + back, -hd + back + d * 0.15, seat, h - 40, lite(C, 0.08));
+      }
+      break;
+    }
+    case "MESA": {
+      bx(-hw, hw, -hd, hd, h - 45, h, wood);
+      bx(-hw + 60, hw - 60, -hd + 60, hd - 60, h - 110, h - 45, shade(wood, 0.8));
+      legs(70, 75, h - 45, shade(wood, 0.72));
+      break;
+    }
+    case "MESA_CENTRO": {
+      bx(-hw, hw, -hd, hd, h - 35, h, lite(wood, 0.1));
+      bx(-hw + 50, hw - 50, -hd + 50, hd - 50, h * 0.28, h * 0.28 + 22, shade(wood, 0.85));
+      legs(45, 50, h - 35, dark);
+      break;
+    }
+    case "CADEIRA": {
+      const seat = h * 0.5;
+      legs(30, 36, seat - 30, shade(wood, 0.7));
+      bx(-hw, hw, -hd, hd, seat - 30, seat, lite(C, 0.1));
+      bx(-hw + 15, -hw + 50, -hd, -hd + 36, seat, h, shade(wood, 0.7));
+      bx(hw - 50, hw - 15, -hd, -hd + 36, seat, h, shade(wood, 0.7));
+      bx(-hw + 15, hw - 15, -hd, -hd + 30, h * 0.72, h * 0.95, lite(C, 0.05));
+      break;
+    }
+    case "CAMA_CASAL": case "CAMA_SOLTEIRO": {
+      const casal = f.k === "CAMA_CASAL", base = 230;
+      bx(-hw, hw, -hd, hd, 60, base, shade(wood, 0.8));
+      legs(35, 60, 60, dark);
+      bx(-hw + 20, hw - 20, -hd + 30, hd - 15, base, h, [236, 233, 226]);
+      bx(-hw, hw, -hd, -hd + 55, 60, h + 380, wood);
+      const pw = casal ? (w - 120) / 2 : w - 100;
+      for (let i = 0; i < (casal ? 2 : 1); i++) {
+        const x0 = casal ? -hw + 40 + i * (pw + 40) : -hw + 50;
+        bx(x0, x0 + pw, -hd + 80, -hd + 80 + d * 0.15, h, h + 110, [250, 249, 246]);
+      }
+      bx(-hw + 12, hw - 12, -hd + d * 0.38, hd, h, h + 35, shade(C, 1.0));
+      break;
+    }
+    case "CRIADO": {
+      legs(22, 36, 110, dark);
+      bx(-hw, hw, -hd, hd, 110, h, shade(wood, 1.05));
+      bx(-hw + 25, hw - 25, hd - 6, hd + 3, 130, 300, shade(wood, 0.82));
+      bx(-hw + 25, hw - 25, hd - 6, hd + 3, 320, h - 25, shade(wood, 0.82));
+      bx(-35, 35, hd, hd + 14, 205, 225, metal);
+      bx(-35, 35, hd, hd + 14, 385, 405, metal);
+      break;
+    }
+    case "RACK": {
+      legs(40, 40, 80, dark);
+      bx(-hw, hw, -hd, hd, 80, h, shade(wood, 0.78));
+      bx(-hw + 25, -25, hd - 8, hd + 3, 100, h - 25, shade(wood, 0.62));
+      bx(25, hw - 25, hd - 8, hd + 3, 100, h - 25, shade(wood, 0.62));
+      const tw = Math.min(w * 0.62, 1300);
+      bx(-tw / 2, tw / 2, -30, 20, h + 70, h + 70 + tw * 0.56, [26, 28, 32]);
+      bx(-30, 30, -40, 25, h, h + 70, [60, 62, 66]);
+      break;
+    }
+    case "GELADEIRA": {
+      bx(-hw, hw, -hd, hd, 0, h, shade(C, 0.96));
+      bx(-hw + 6, hw - 6, hd - 4, hd + 4, h * 0.62, h - 20, lite(C, 0.1));
+      bx(-hw + 6, hw - 6, hd - 4, hd + 4, 25, h * 0.62 - 6, lite(C, 0.1));
+      bx(-hw, hw, hd - 4, hd + 4, h * 0.62 - 6, h * 0.62 + 0, [60, 62, 66]);
+      bx(hw - 80, hw - 55, hd + 4, hd + 36, h * 0.66, h * 0.66 + 360, metal);
+      bx(hw - 80, hw - 55, hd + 4, hd + 36, h * 0.62 - 420, h * 0.62 - 60, metal);
+      break;
+    }
+    case "FOGAO": {
+      bx(-hw, hw, -hd, hd, 0, h - 22, shade(C, 1.5));
+      bx(-hw, hw, -hd, hd, h - 22, h, [36, 38, 42]);
+      bx(-hw + 45, hw - 45, hd - 6, hd + 3, 90, h - 150, [30, 33, 38]);
+      bx(-hw + 80, hw - 80, hd + 3, hd + 40, h - 215, h - 190, metal);
+      const r = Math.min(w, d) * 0.12;
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([i, j]) => cy.push({ x: i * w * 0.22, y: j * d * 0.22, r, y0: h, y1: h + 22, col: [70, 72, 78] }));
+      cy.forEach(c => { c.cap = [38, 38, 42]; });
+      break;
+    }
+    default: {
+      bx(-hw, hw, -hd, hd, 0, h, C);
+      bx(-hw + 15, hw - 15, -hd + 15, hd - 15, h, h + 12, lite(C, 0.12));
+    }
+  }
+  return { P, cy };
+}
+
 function furnFaces() {
   fus.forEach(f => {
-    const c = Math.cos(f.rr), s = Math.sin(f.rr), hw = f.w / 2, hd = f.d / 2, col = FCOL[f.k] || FCOL.OUTRO, tag = { k: "f", id: f.id };
-    const P = (lx, ly, y) => [f.x + lx*c - ly*s, y, f.y + lx*s + ly*c], o = { edge: true };
-    const add = (pts, n) => faces.push(mk(pts, n, col, tag, o));
-    add([P(hw,-hd,0), P(hw,hd,0), P(hw,hd,f.h), P(hw,-hd,f.h)], [c, 0, s]);
-    add([P(-hw,hd,0), P(-hw,-hd,0), P(-hw,-hd,f.h), P(-hw,hd,f.h)], [-c, 0, -s]);
-    add([P(hw,hd,0), P(-hw,hd,0), P(-hw,hd,f.h), P(hw,hd,f.h)], [-s, 0, c]);
-    add([P(-hw,-hd,0), P(hw,-hd,0), P(hw,-hd,f.h), P(-hw,-hd,f.h)], [s, 0, -c]);
-    add([P(-hw,-hd,f.h), P(hw,-hd,f.h), P(hw,hd,f.h), P(-hw,hd,f.h)], [0, 1, 0]);
+    const c = Math.cos(f.rr), s = Math.sin(f.rr), tag = { k: "f", id: f.id }, parts = furnParts(f);
+    const W = (lx, ly, y) => [f.x + lx*c - ly*s, y, f.y + lx*s + ly*c];
+    const nx = [c, 0, s], ny = [-s, 0, c];
+    const gc = W(0, 0, f.h / 2), o = { edge: true, gc };
+    // sombra suave no piso
+    const e = 45, hw = f.w / 2 + e, hd = f.d / 2 + e;
+    faces.push(mk([W(-hw, -hd, 2), W(hw, -hd, 2), W(hw, hd, 2), W(-hw, hd, 2)], [0, 1, 0], [18, 16, 14], null, { floor: true, shadow: true, cull: false, edge: false, a: 0.2 }));
+    parts.P.forEach(p => {
+      const col = p.col, add = (pts, n) => faces.push(mk(pts, n, col, tag, o));
+      const { x0, x1, y0, y1, z0, z1 } = p; // z0/z1 = altura
+      add([W(x1,y0,z0), W(x1,y1,z0), W(x1,y1,z1), W(x1,y0,z1)], nx);
+      add([W(x0,y1,z0), W(x0,y0,z0), W(x0,y0,z1), W(x0,y1,z1)], [-nx[0], 0, -nx[2]]);
+      add([W(x1,y1,z0), W(x0,y1,z0), W(x0,y1,z1), W(x1,y1,z1)], ny);
+      add([W(x0,y0,z0), W(x1,y0,z0), W(x1,y0,z1), W(x0,y0,z1)], [-ny[0], 0, -ny[2]]);
+      add([W(x0,y0,z1), W(x1,y0,z1), W(x1,y1,z1), W(x0,y1,z1)], [0, 1, 0]);
+    });
+    parts.cy.forEach(q => {
+      const N = 12, ring = (y) => Array.from({ length: N }, (_, k) => { const a = k / N * Math.PI * 2; return W(q.x + q.r * Math.cos(a), q.y + q.r * Math.sin(a), y); });
+      const lo = ring(q.y0), hi = ring(q.y1);
+      for (let k = 0; k < N; k++) {
+        const j = (k + 1) % N, m = (k + 0.5) / N * Math.PI * 2, lx = Math.cos(m), ly = Math.sin(m);
+        faces.push(mk([lo[k], lo[j], hi[j], hi[k]], [lx*c - ly*s, 0, lx*s + ly*c], q.col, tag, Object.assign({ edge: false }, o)));
+      }
+      faces.push(mk(hi, [0, 1, 0], q.cap || q.col, tag, o));
+    });
   });
 }
 
@@ -250,19 +397,21 @@ function render() {
     const cl = pc.some(p => p[2] < NEAR) ? clipNear(pc) : pc;
     if (cl.length < 3) return;
     const gh = !!(f.wall && ghost[f.wall]) && !f.floor;
-    const item = { f, sp: cl.map(scr), z, gh };
+    const item = { f, sp: cl.map(scr), z, z2: z, gh };
+    if (f.gc) item.z = toCam(f.gc)[2];
+    item.rk = f.floor ? (f.shadow ? 0.5 : 0) : gh ? 3 : f.gc ? 2 : 1;
     if (f.wall && !f.doorp) { const m = minZ[f.wall]; if (m === undefined || z < m) minZ[f.wall] = z; }
     list.push(item);
   });
   list.forEach(it => { const k = it.f.elw; if (k && minZ[k] !== undefined) it.z = minZ[k] - 1; if (it.f.doorp && minZ[it.f.wall] !== undefined) it.z = minZ[it.f.wall] - 0.5; });
-  list.sort((a, b) => (b.f.floor ? 1 : 0) - (a.f.floor ? 1 : 0) || (a.gh - b.gh) || (b.z - a.z));
+  list.sort((a, b) => (a.rk - b.rk) || (b.z - a.z) || (b.z2 - a.z2));
   drawn = [];
   const amber = [255, 178, 36];
   list.forEach(it => {
-    const f = it.f, on = same(sel, f.tag) || (sel && sel.k === "r" && f.tag.k === "r" && sel.r === f.tag.r);
+    const f = it.f, on = same(sel, f.tag) || (sel && sel.k === "r" && f.tag && f.tag.k === "r" && sel.r === f.tag.r);
     const shade = 0.58 + 0.42 * Math.max(0, dot(f.n, LIGHT));
     let col = f.col, al = f.a;
-    if (on) { col = (f.tag.k === "e" || f.tag.k === "f") ? amber : col.map((v, i) => v * 0.55 + amber[i] * 0.45); }
+    if (on) { col = f.tag.k === "f" ? col.map((v, i) => v * 0.62 + amber[i] * 0.38) : f.tag.k === "e" ? amber : col.map((v, i) => v * 0.55 + amber[i] * 0.45); }
     if (it.gh) al = Math.min(al, 0.10);
     const c = col.map(v => Math.round(Math.min(255, v * (f.floor ? 1 : shade))));
     g.beginPath();
