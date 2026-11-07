@@ -138,12 +138,17 @@ const TECH = { TOMADA: [224, 88, 74], INTERRUPTOR: [224, 88, 74], AGUA: [61, 154
 
 const isPia = e => e.k === "PIA1" || e.k === "PIA2";
 function piaCubas(e) {
-  const w = e.wd, s0 = e.p;
-  if (e.k === "PIA1") { const cw = Math.min(500, w * 0.55), gap = Math.min(80, w * 0.08), a = e.hg ? s0 + w - gap - cw : s0 + gap; return [[a, a + cw]]; }
-  const cw = Math.min(450, w * 0.36), gap = (w - 2 * cw) / 3;
-  return [[s0 + gap, s0 + gap + cw], [s0 + 2 * gap + cw, s0 + 2 * gap + 2 * cw]];
+  const w = e.wd, s0 = e.p, M = Math;
+  if (e.k === "PIA1") {
+    const raw = e.cw > 0 ? e.cw : M.min(500, w * 0.55), cw = M.min(M.max(raw, 50), M.max(50, w - 20));
+    const g0 = e.cg >= 0 ? e.cg : M.min(80, w * 0.08), gap = M.min(M.max(g0, 0), M.max(0, w - cw)), a = e.hg ? s0 + w - gap - cw : s0 + gap;
+    return [[a, a + cw]];
+  }
+  const raw = e.cw > 0 ? e.cw : M.min(450, w * 0.36), cw = M.min(M.max(raw, 50), M.max(50, (w - 20) / 2));
+  const g0 = e.cg >= 0 ? e.cg : (w - 2 * cw) / 3, gap = M.min(M.max(g0, 0), M.max(0, w - 2 * cw)), edge = (w - 2 * cw - gap) / 2;
+  return [[s0 + edge, s0 + edge + cw], [s0 + edge + cw + gap, s0 + edge + 2 * cw + gap]];
 }
-const piaCD = e => Math.max(150, Math.min(400, e.dp - 120));
+const piaCD = e => e.cd > 0 ? Math.min(Math.max(e.cd, 50), Math.max(50, e.dp - 20)) : Math.max(150, Math.min(400, e.dp - 120));
 
 function mk(pts, n, col, tag, o) { return Object.assign({ p: pts, n, col, tag, a: 1 }, o || {}); }
 
