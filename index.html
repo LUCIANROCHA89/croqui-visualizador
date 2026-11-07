@@ -213,6 +213,22 @@ function buildFaces() {
       box(W, s0, s1, 0, W.H, 0, e.dp, e.k === "PILAR" ? COL.pillar : COL.tooth, tag, { elw: wk, edge: true }).forEach(f => faces.push(f));
     } else if (e.k === "VIGA") {
       box(W, s0, s1, e.ht, W.H, 0, e.dp, COL.beam, tag, { elw: wk, edge: true }).forEach(f => faces.push(f));
+    } else if (e.k === "BANCADA") {
+      const ht = e.ht || 900, dp = e.dp, bo = { elw: wk, edge: true }, add = (...a) => box(W, ...a).forEach(f => faces.push(f));
+      add(s0, s1, 0, 100, 0, dp - 45, [84, 68, 54], tag, bo);                      // rodapé recuado
+      add(s0, s1, 100, ht - 30, 0, dp - 12, [200, 170, 128], tag, bo);              // gabinete
+      add(s0 - 0, s1, ht - 30, ht, 0, dp + 14, [66, 70, 76], tag, bo);              // tampo
+      const n = Math.max(1, Math.round(e.wd / 600)), step = e.wd / n;                // frestas entre as portas
+      for (let k = 1; k < n; k++) add(s0 + k * step - 3, s0 + k * step + 3, 130, ht - 40, dp - 14, dp - 11, [120, 96, 70], tag, bo);
+    } else if (e.k === "CUBA") {
+      const host = els.find(x => x.k === "BANCADA" && x.R === e.R && x.W === e.W && e.p + e.wd / 2 >= x.p && e.p + e.wd / 2 <= x.p + x.wd);
+      const ht = host ? (host.ht || 900) : 900, inset = host ? Math.max(0, (host.dp - e.dp) / 2) : 60, co = { elw: wk, edge: true };
+      const add = (...a) => box(W, ...a).forEach(f => faces.push(f)), mid = e.p + e.wd / 2;
+      add(s0, s1, ht, ht + 8, inset, inset + e.dp, [206, 209, 213], tag, co);       // aro da cuba
+      add(s0 + 30, s1 - 30, ht + 8, ht + 10, inset + 30, inset + e.dp - 30, [52, 56, 62], tag, co); // bacia
+      const fd = Math.max(inset * 0.5, 22);                                         // torneira
+      add(mid - 12, mid + 12, ht, ht + 250, fd - 12, fd + 12, [190, 194, 198], tag, co);
+      add(mid - 10, mid + 10, ht + 232, ht + 258, fd - 12, fd + 170, [190, 194, 198], tag, co);
     }
   });
   furnFaces();
@@ -495,6 +511,17 @@ function selectEl(id) {
     dims.push(hz(W, 0, e.p, y, d), hz(W, e.p, e.p + e.wd, y, d), hz(W, e.p + e.wd, L, y, d), vt(W, mid, 0, e.ht, d), vt(W, mid, e.ht, H, d));
     dims.push(dm(W.w(mid, e.ht, 0), W.w(mid, e.ht, e.dp), fmt(e.dp)));
     const o = oppositeDist(W, mid); if (o) dims.push(dm(W.w(mid, e.ht, e.dp), W.w(mid, e.ht, o), fmt(o - e.dp)));
+  } else if (e.k === "BANCADA") {
+    const mid = e.p + e.wd / 2, ht = e.ht || 900;
+    dims.push(hz(W, 0, e.p, ht + 120, d), hz(W, e.p, e.p + e.wd, ht + 120, d), hz(W, e.p + e.wd, L, ht + 120, d), vt(W, mid, 0, ht, d), vt(W, mid, ht, H, d));
+    dims.push(dm(W.w(mid, ht, 0), W.w(mid, ht, e.dp), fmt(e.dp)));
+    const o = oppositeDist(W, mid); if (o) dims.push(dm(W.w(mid, ht, e.dp), W.w(mid, ht, o), fmt(o - e.dp)));
+  } else if (e.k === "CUBA") {
+    const host = els.find(x => x.k === "BANCADA" && x.R === e.R && x.W === W && e.p + e.wd / 2 >= x.p && e.p + e.wd / 2 <= x.p + x.wd), ht = host ? (host.ht || 900) : 900;
+    dims.push(hz(W, 0, e.p, ht + 40, d), hz(W, e.p, e.p + e.wd, ht + 40, d), hz(W, e.p + e.wd, L, ht + 40, d));
+    if (host) { dims.push(hz(W, host.p, e.p, ht + 160, d), hz(W, e.p + e.wd, host.p + host.wd, ht + 160, d)); }
+    const ins = host ? Math.max(0, (host.dp - e.dp) / 2) : 60;
+    dims.push(dm(W.w(e.p + e.wd / 2, ht, ins), W.w(e.p + e.wd / 2, ht, ins + e.dp), fmt(e.dp)));
   } else {
     const mid = e.p + e.wd / 2;
     dims.push(hz(W, 0, e.p, 140, d), hz(W, e.p, e.p + e.wd, 140, d), hz(W, e.p + e.wd, L, 140, d), vt(W, mid, 0, H, d));
@@ -553,7 +580,7 @@ function panel() {
     h += sec("Ambientes");
     rooms.forEach(R => { h += link(esc(R.name), R.closed ? R.area.toFixed(2).replace(".", ",") + " m²" : "aberto", "r" + R.i); });
     if (fus.length) { h += sec("Móveis"); fus.forEach(f => { h += link(esc(f.name) + (f.total > 1 ? " " + f.n : ""), fmt(f.w) + " × " + fmt(f.d), "f" + f.id); }); }
-    h += `<div class="foot">Toque em uma <b>parede</b>, <b>porta</b>, <b>janela</b>, <b>tomada</b>, <b>pilar</b>, <b>viga</b>, <b>móvel</b> ou no <b>piso</b> para ver todas as cotas e distâncias.${D.by ? "<br>" + esc(D.by) : ""}</div>`;
+    h += `<div class="foot">Toque em uma <b>parede</b>, <b>porta</b>, <b>janela</b>, <b>tomada</b>, <b>pilar</b>, <b>viga</b>, <b>bancada</b>, <b>cuba</b>, <b>móvel</b> ou no <b>piso</b> para ver todas as cotas e distâncias.${D.by ? "<br>" + esc(D.by) : ""}</div>`;
   } else if (sel.k === "r") {
     const R = rooms[sel.r]; let per = 0; R.walls.forEach(w => per += w.L);
     h += `<span class="kind">Ambiente</span><h2>${esc(R.name)}</h2><div class="sub">${R.closed ? "ambiente fechado" : "parede aberta"}</div>`;
@@ -599,6 +626,10 @@ function panel() {
       h += row("Largura", fmt(e.wd)) + row("Altura", fmt(e.ht));
       if (e.k === "JANELA" || e.sl > 0) h += row("Peitoril", fmt(e.sl), "do piso até a base da abertura");
       h += row("Topo da abertura", fmt(Math.min(H, e.sl + e.ht)), "do piso até o topo");
+    } else if (e.k === "BANCADA") {
+      h += row("Comprimento", fmt(e.wd)) + row("Profundidade", fmt(e.dp)) + row("Altura do tampo", fmt(e.ht), "do piso até o tampo");
+    } else if (e.k === "CUBA") {
+      h += row("Largura da cuba", fmt(e.wd)) + row("Profundidade da cuba", fmt(e.dp), "recorte no tampo");
     } else if (e.k === "VIGA") {
       h += row("Comprimento", fmt(e.wd)) + row("Profundidade", fmt(e.dp)) + row("Altura livre", fmt(e.ht), "do piso até o fundo da viga") + row("Altura da viga", fmt(H - e.ht));
     } else {
@@ -607,8 +638,11 @@ function panel() {
     h += sec("Distâncias");
     h += row("Do canto inicial (parede " + ((W.i + R.walls.length - 1) % R.walls.length + 1) + ")", fmt(begD), e.re ? "cotado a partir do fim da parede" : "face interna, até " + (e.te ? "o centro" : "a borda"));
     h += row("Do canto final (parede " + ((W.i + 1) % R.walls.length + 1) + ")", fmt(endD), e.te ? "até o centro" : "até a borda");
-    h += row("Ao piso", fmt(e.te ? e.sl : e.k === "VIGA" ? e.ht : e.sl));
-    const top = e.te ? e.sl : e.k === "VIGA" ? H : e.cut ? e.sl + e.ht : H;
+    const hostC = e.k === "CUBA" ? els.find(x => x.k === "BANCADA" && x.R === R && x.W === W && e.p + e.wd / 2 >= x.p && e.p + e.wd / 2 <= x.p + x.wd) : null;
+    const cubaHt = e.k === "CUBA" ? (hostC ? (hostC.ht || 900) : 900) : 0;
+    h += row("Ao piso", fmt(e.te ? e.sl : (e.k === "VIGA" || e.k === "BANCADA") ? e.ht : e.k === "CUBA" ? cubaHt : e.sl), e.k === "CUBA" ? "altura do tampo da bancada" : "");
+    if (hostC) h += row("Do início da bancada", fmt(e.p - hostC.p), "até a borda da cuba") + row("Ao fim da bancada", fmt(hostC.p + hostC.wd - (e.p + e.wd)), "da borda da cuba");
+    const top = e.te ? e.sl : e.k === "VIGA" ? H : e.k === "BANCADA" ? e.ht : e.k === "CUBA" ? cubaHt : e.cut ? e.sl + e.ht : H;
     h += row("Ao teto", fmt(Math.max(0, H - top)), e.k === "VIGA" ? "a viga encosta no teto" : e.k === "PILAR" || e.k === "DENTE" ? "vai até o teto" : "");
     if (opp) h += row("À parede oposta", fmt(opp - (e.dp || 0)), (e.dp ? "da frente do elemento" : "da face interna desta parede") + " · total " + fmt(opp));
     h += row("Comprimento da parede", fmt(L));
