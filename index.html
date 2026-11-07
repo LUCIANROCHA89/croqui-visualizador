@@ -136,6 +136,15 @@ const FCOL = {
 };
 const TECH = { TOMADA: [224, 88, 74], INTERRUPTOR: [224, 88, 74], AGUA: [61, 154, 209], AGUA_Q: [217, 83, 79], ESGOTO: [122, 102, 82], GAS: [227, 162, 26] };
 
+const isPia = e => e.k === "PIA1" || e.k === "PIA2";
+function piaCubas(e) {
+  const w = e.wd, s0 = e.p;
+  if (e.k === "PIA1") { const cw = Math.min(500, w * 0.55), gap = Math.min(80, w * 0.08), a = e.hg ? s0 + w - gap - cw : s0 + gap; return [[a, a + cw]]; }
+  const cw = Math.min(450, w * 0.36), gap = (w - 2 * cw) / 3;
+  return [[s0 + gap, s0 + gap + cw], [s0 + 2 * gap + cw, s0 + 2 * gap + 2 * cw]];
+}
+const piaCD = e => Math.max(150, Math.min(400, e.dp - 120));
+
 function mk(pts, n, col, tag, o) { return Object.assign({ p: pts, n, col, tag, a: 1 }, o || {}); }
 
 function box(W, s0, s1, y0, y1, d0, d1, col, tag, o) {
@@ -220,15 +229,32 @@ function buildFaces() {
       add(s0 - 0, s1, ht - 30, ht, 0, dp + 14, [66, 70, 76], tag, bo);              // tampo
       const n = Math.max(1, Math.round(e.wd / 600)), step = e.wd / n;                // frestas entre as portas
       for (let k = 1; k < n; k++) add(s0 + k * step - 3, s0 + k * step + 3, 130, ht - 40, dp - 14, dp - 11, [120, 96, 70], tag, bo);
+    } else if (isPia(e)) {
+      const ht = e.ht || 900, dp = e.dp, add = (n, ...a) => box(W, ...a, tag, { elw: wk, edge: true, lay: n }).forEach(f => faces.push(f));
+      const inox = [196, 200, 205], dk = [44, 48, 54], cd = piaCD(e), ins = (dp - cd) / 2, cubas = piaCubas(e);
+      add(0, s0, s1, ht - 45, ht, 0, dp, inox);                                           // tampo em inox (sem armário)
+      add(0, s0, s1, ht - 130, ht - 45, dp - 28, dp - 22, shade(inox, 0.85));             // testeira frontal
+      [s0 + 25, s1 - 25].forEach(x => { add(0, x - 20, x + 20, 0, ht - 45, dp - 60, dp - 20, shade(inox, 0.78)); add(0, x - 20, x + 20, 0, ht - 45, 20, 60, shade(inox, 0.78)); }); // pés
+      cubas.forEach(([a0, a1]) => {
+        add(1, a0, a1, ht, ht + 4, ins, ins + cd, shade(inox, 1.08));                       // aro
+        add(2, a0 + 24, a1 - 24, ht + 4, ht + 6, ins + 24, ins + cd - 24, dk);              // bacia
+      });
+      if (e.k === "PIA1") {                                                               // frisos do escorredor
+        const c = cubas[0], d0 = e.hg ? s0 + 40 : c[1] + 40, d1 = e.hg ? c[0] - 40 : s1 - 40;
+        if (d1 - d0 > 120) for (let k = 0; k < 6; k++) { const x = d0 + (d1 - d0) * (k + 0.5) / 6; add(2, x - 5, x + 5, ht, ht + 3, ins + 30, ins + cd - 30, dk); }
+      }
+      const fx = cubas.length === 1 ? (cubas[0][0] + cubas[0][1]) / 2 : (cubas[0][1] + cubas[1][0]) / 2, fd = Math.max(ins * 0.5, 22);
+      add(3, fx - 12, fx + 12, ht, ht + 250, fd - 12, fd + 12, [150, 154, 160]);          // torneira
+      add(3, fx - 10, fx + 10, ht + 232, ht + 258, fd - 12, fd + 170, [150, 154, 160]);
     } else if (e.k === "CUBA") {
       const host = els.find(x => x.k === "BANCADA" && x.R === e.R && x.W === e.W && e.p + e.wd / 2 >= x.p && e.p + e.wd / 2 <= x.p + x.wd);
-      const ht = host ? (host.ht || 900) : 900, inset = host ? Math.max(0, (host.dp - e.dp) / 2) : 60, co = { elw: wk, edge: true };
-      const add = (...a) => box(W, ...a).forEach(f => faces.push(f)), mid = e.p + e.wd / 2;
-      add(s0, s1, ht, ht + 8, inset, inset + e.dp, [206, 209, 213], tag, co);       // aro da cuba
-      add(s0 + 30, s1 - 30, ht + 8, ht + 10, inset + 30, inset + e.dp - 30, [52, 56, 62], tag, co); // bacia
-      const fd = Math.max(inset * 0.5, 22);                                         // torneira
-      add(mid - 12, mid + 12, ht, ht + 250, fd - 12, fd + 12, [190, 194, 198], tag, co);
-      add(mid - 10, mid + 10, ht + 232, ht + 258, fd - 12, fd + 170, [190, 194, 198], tag, co);
+      const ht = host ? (host.ht || 900) : 900, inset = host ? Math.max(0, (host.dp - e.dp) / 2) : 60;
+      const add = (n, ...a) => box(W, ...a, tag, { elw: wk, edge: true, lay: n }).forEach(f => faces.push(f)), mid = e.p + e.wd / 2;
+      add(1, s0, s1, ht, ht + 8, inset, inset + e.dp, [206, 209, 213]);                  // aro da cuba
+      add(2, s0 + 30, s1 - 30, ht + 8, ht + 10, inset + 30, inset + e.dp - 30, [44, 48, 54]); // bacia
+      const fd = Math.max(inset * 0.5, 22);                                               // torneira
+      add(3, mid - 12, mid + 12, ht, ht + 250, fd - 12, fd + 12, [190, 194, 198]);
+      add(3, mid - 10, mid + 10, ht + 232, ht + 258, fd - 12, fd + 170, [190, 194, 198]);
     }
   });
   furnFaces();
@@ -420,7 +446,7 @@ function render() {
     list.push(item);
   });
   list.forEach(it => { const k = it.f.elw; if (k && minZ[k] !== undefined) it.z = minZ[k] - 1; if (it.f.doorp && minZ[it.f.wall] !== undefined) it.z = minZ[it.f.wall] - 0.5; });
-  list.sort((a, b) => (a.rk - b.rk) || (b.z - a.z) || (b.z2 - a.z2));
+  list.sort((a, b) => (a.rk - b.rk) || (b.z - a.z) || ((a.f.lay || 0) - (b.f.lay || 0)) || (b.z2 - a.z2));
   drawn = [];
   const amber = [255, 178, 36];
   list.forEach(it => {
@@ -516,6 +542,15 @@ function selectEl(id) {
     dims.push(hz(W, 0, e.p, ht + 120, d), hz(W, e.p, e.p + e.wd, ht + 120, d), hz(W, e.p + e.wd, L, ht + 120, d), vt(W, mid, 0, ht, d), vt(W, mid, ht, H, d));
     dims.push(dm(W.w(mid, ht, 0), W.w(mid, ht, e.dp), fmt(e.dp)));
     const o = oppositeDist(W, mid); if (o) dims.push(dm(W.w(mid, ht, e.dp), W.w(mid, ht, o), fmt(o - e.dp)));
+  } else if (isPia(e)) {
+    const mid = e.p + e.wd / 2, ht = e.ht || 900, cs = piaCubas(e), st = [0, e.p];
+    cs.forEach(c => st.push(c[0], c[1]));
+    st.push(e.p + e.wd, L);
+    const u = [...new Set(st.map(v => Math.round(v)))].sort((a, b) => a - b);
+    for (let k = 0; k + 1 < u.length; k++) if (u[k + 1] - u[k] > 1) dims.push(hz(W, u[k], u[k + 1], ht + 120, d));
+    dims.push(vt(W, mid, 0, ht, d), vt(W, mid, ht, H, d));
+    dims.push(dm(W.w(mid, ht, 0), W.w(mid, ht, e.dp), fmt(e.dp)));
+    const o = oppositeDist(W, mid); if (o) dims.push(dm(W.w(mid, ht, e.dp), W.w(mid, ht, o), fmt(o - e.dp)));
   } else if (e.k === "CUBA") {
     const host = els.find(x => x.k === "BANCADA" && x.R === e.R && x.W === W && e.p + e.wd / 2 >= x.p && e.p + e.wd / 2 <= x.p + x.wd), ht = host ? (host.ht || 900) : 900;
     dims.push(hz(W, 0, e.p, ht + 40, d), hz(W, e.p, e.p + e.wd, ht + 40, d), hz(W, e.p + e.wd, L, ht + 40, d));
@@ -580,7 +615,7 @@ function panel() {
     h += sec("Ambientes");
     rooms.forEach(R => { h += link(esc(R.name), R.closed ? R.area.toFixed(2).replace(".", ",") + " m²" : "aberto", "r" + R.i); });
     if (fus.length) { h += sec("Móveis"); fus.forEach(f => { h += link(esc(f.name) + (f.total > 1 ? " " + f.n : ""), fmt(f.w) + " × " + fmt(f.d), "f" + f.id); }); }
-    h += `<div class="foot">Toque em uma <b>parede</b>, <b>porta</b>, <b>janela</b>, <b>tomada</b>, <b>pilar</b>, <b>viga</b>, <b>bancada</b>, <b>cuba</b>, <b>móvel</b> ou no <b>piso</b> para ver todas as cotas e distâncias.${D.by ? "<br>" + esc(D.by) : ""}</div>`;
+    h += `<div class="foot">Toque em uma <b>parede</b>, <b>porta</b>, <b>janela</b>, <b>tomada</b>, <b>pilar</b>, <b>viga</b>, <b>bancada</b>, <b>pia</b>, <b>cuba</b>, <b>móvel</b> ou no <b>piso</b> para ver todas as cotas e distâncias.${D.by ? "<br>" + esc(D.by) : ""}</div>`;
   } else if (sel.k === "r") {
     const R = rooms[sel.r]; let per = 0; R.walls.forEach(w => per += w.L);
     h += `<span class="kind">Ambiente</span><h2>${esc(R.name)}</h2><div class="sub">${R.closed ? "ambiente fechado" : "parede aberta"}</div>`;
@@ -628,6 +663,12 @@ function panel() {
       h += row("Topo da abertura", fmt(Math.min(H, e.sl + e.ht)), "do piso até o topo");
     } else if (e.k === "BANCADA") {
       h += row("Comprimento", fmt(e.wd)) + row("Profundidade", fmt(e.dp)) + row("Altura do tampo", fmt(e.ht), "do piso até o tampo");
+    } else if (isPia(e)) {
+      const cs = piaCubas(e), cw = cs[0][1] - cs[0][0];
+      h += row("Comprimento", fmt(e.wd)) + row("Profundidade", fmt(e.dp)) + row("Altura do tampo", fmt(e.ht), "do piso até o tampo");
+      h += row("Cubas", cs.length + (cs.length === 1 ? " cuba + escorredor" : " cubas")) + row("Cada cuba", fmt(cw) + " × " + fmt(piaCD(e)), "recorte no tampo");
+      cs.forEach((c, i) => { h += row("Cuba " + (cs.length > 1 ? (i + 1) + " · " : "") + "do início da pia", fmt(c[0] - e.p), "até a borda da cuba") + row("Cuba " + (cs.length > 1 ? (i + 1) + " · " : "") + "ao fim da pia", fmt(e.p + e.wd - c[1]), "da borda da cuba"); });
+      if (cs.length > 1) h += row("Entre as cubas", fmt(cs[1][0] - cs[0][1]));
     } else if (e.k === "CUBA") {
       h += row("Largura da cuba", fmt(e.wd)) + row("Profundidade da cuba", fmt(e.dp), "recorte no tampo");
     } else if (e.k === "VIGA") {
@@ -640,9 +681,9 @@ function panel() {
     h += row("Do canto final (parede " + ((W.i + 1) % R.walls.length + 1) + ")", fmt(endD), e.te ? "até o centro" : "até a borda");
     const hostC = e.k === "CUBA" ? els.find(x => x.k === "BANCADA" && x.R === R && x.W === W && e.p + e.wd / 2 >= x.p && e.p + e.wd / 2 <= x.p + x.wd) : null;
     const cubaHt = e.k === "CUBA" ? (hostC ? (hostC.ht || 900) : 900) : 0;
-    h += row("Ao piso", fmt(e.te ? e.sl : (e.k === "VIGA" || e.k === "BANCADA") ? e.ht : e.k === "CUBA" ? cubaHt : e.sl), e.k === "CUBA" ? "altura do tampo da bancada" : "");
+    h += row("Ao piso", fmt(e.te ? e.sl : (e.k === "VIGA" || e.k === "BANCADA" || isPia(e)) ? e.ht : e.k === "CUBA" ? cubaHt : e.sl), e.k === "CUBA" ? "altura do tampo da bancada" : "");
     if (hostC) h += row("Do início da bancada", fmt(e.p - hostC.p), "até a borda da cuba") + row("Ao fim da bancada", fmt(hostC.p + hostC.wd - (e.p + e.wd)), "da borda da cuba");
-    const top = e.te ? e.sl : e.k === "VIGA" ? H : e.k === "BANCADA" ? e.ht : e.k === "CUBA" ? cubaHt : e.cut ? e.sl + e.ht : H;
+    const top = e.te ? e.sl : e.k === "VIGA" ? H : (e.k === "BANCADA" || isPia(e)) ? e.ht : e.k === "CUBA" ? cubaHt : e.cut ? e.sl + e.ht : H;
     h += row("Ao teto", fmt(Math.max(0, H - top)), e.k === "VIGA" ? "a viga encosta no teto" : e.k === "PILAR" || e.k === "DENTE" ? "vai até o teto" : "");
     if (opp) h += row("À parede oposta", fmt(opp - (e.dp || 0)), (e.dp ? "da frente do elemento" : "da face interna desta parede") + " · total " + fmt(opp));
     h += row("Comprimento da parede", fmt(L));
